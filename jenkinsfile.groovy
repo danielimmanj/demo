@@ -2,17 +2,23 @@ pipeline {
     agent any
 
     tools {
-        maven 'mvn-3.9.9' // Ensure Maven is installed via Jenkins tools
+        maven 'mvn-3.9.9'
     }
 
     stages {
-        stage('Clone Latest Code') {
+        stage('Checkout or Pull Latest Code') {
             steps {
-                // Optional: Clean workspace before cloning
-                deleteDir() // comment this if you want to retain workspace cache
-
-                // Fresh clone from 'develop' branch
-                git branch: 'master', url: 'https://github.com/danielimmanj/demo.git'
+                script {
+                    if (fileExists('.git')) {
+                        echo 'Git repo already exists. Pulling latest code...'
+                        sh 'git reset --hard'
+                        sh 'git clean -fd'
+                        sh 'git pull origin master'
+                    } else {
+                        echo 'Cloning repository for the first time...'
+                        sh 'git clone -b master https://github.com/danielimmanj/demo.git .'
+                    }
+                }
             }
         }
 
@@ -34,17 +40,18 @@ pipeline {
                 scannerHome = tool 'sonar-scanner'
             }
             steps {
-                dir('product-service') {
-                    script {
-                        withSonarQubeEnv('sonar-server') {
-                            sh """
+                script {
+                    withSonarQubeEnv('sonar-server') {
+                        sh """
                             ${scannerHome}/bin/sonar-scanner \
                                 -Dsonar.projectKey=e-commerce-inventory-service \
                                 -Dsonar.projectName=e-commerce-inventory-service \
                                 -Dsonar.projectVersion=1.0 \
-                                -Dsonar.java.binaries=target/classes
-                            """
-                        }
+                                -Dsonar.sources=src/main/java \
+                                -Dsonar.tests=src/test/java \
+                                -Dsonar.java.binaries=target/classes \
+                                -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
+                        """
                     }
                 }
             }
